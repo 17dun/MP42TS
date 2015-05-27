@@ -84,8 +84,6 @@ static GFINLINE void usage()
 	        "\n"
 	        "Destinations:\n"
 	        "Several destinations may be specified as follows, at least one is mandatory\n"
-	        "-dst-udp UDP_address:port (multicast or unicast)\n"
-	        "-dst-rtp RTP_address:port\n"
 	        "-dst-file filename\n"
 	        "The following parameters may be specified when -dst-file is used\n"
 	        "-segment-dir dir       server local directory to store segments (ends with a '/')\n"
@@ -106,28 +104,9 @@ static GFINLINE void usage()
 	        "                        * This should be set to 0 for DASH streams.\n"
 	        "-time n                request the muxer to stop after n ms\n"
 	        "-single-au             forces 1 PES = 1 AU (disabled by default)\n"
-	        "-rap                   forces RAP/IDR to be aligned with PES start for video streams (disabled by default)\n"
-	        "                          in this mode, PAT, PMT and PCR will be inserted before the first TS packet of the RAP PES\n"
-	        "-flush-rap             same as -rap but flushes all other streams (sends remaining PES packets) before inserting PAT/PMT\n"
 	        "-nb-pack N             specifies to pack up to N TS packets together before sending on network or writing to file\n"
 	        "-pcr-ms N              sets max interval in ms between 2 PCR. Default is 100 ms\n"
 	        "-ttl N                 specifies Time-To-Live for multicast. Default is 1.\n"
-	        "-ifce IPIFCE           specifies default IP interface to use. Default is IF_ANY.\n"
-	        "-temi [URL]            Inserts TEMI time codes in adaptation field. URL is optionnal\n"
-	        "-temi-delay DelayMS    Specifies delay between two TEMI url descriptors (default is 1000)\n"
-	        "-temi-offset OffsetMS  Specifies an offset in ms to add to TEMI (by default TEMI starts at 0)\n"
-	        "-temi-noloop           Do not restart the TEMI timeline at the end of the source\n"
-	        "-sdt-rate MS           Gives the SDT carrousel rate in milliseconds. If 0 (default), SDT is not sent\n"
-	        "\n"
-	        "MPEG-4/T-DMB options:\n"
-	        "-bifs-src filename          update file: must be either an .sdp or a .bt file\n"
-	        "-audio url             may be mp3/udp or aac/http (shoutcast/icecast)\n"
-	        "-video url             shall be a raw h264 frame\n"
-	        "-mpeg4-carousel n      carousel period in ms\n"
-	        "-mpeg4 or -4on2        forces usage of MPEG-4 signaling (IOD and SL Config)\n"
-	        "-4over2                same as -4on2 and uses PMT to carry OD Updates\n"
-	        "-bifs-pes              carries BIFS over PES instead of sections\n"
-	        "-bifs-pes-ex           carries BIFS over PES without writing timestamps in SL\n"
 	        "\n"
 	        "Misc options\n"
 #ifdef GPAC_MEMORY_TRACKING
@@ -172,7 +151,7 @@ typedef struct
 	u32 ID;
 	Bool is_not_program_declaration;
 
-	Double last_ntp;
+	
 } M2TSSource;
 
 #ifndef GPAC_DISABLE_ISOM
@@ -202,9 +181,8 @@ typedef struct
 
 typedef struct
 {
-	u32 carousel_period, ts_delta;
+	u32 ts_delta;
 	u16 aggregate_on_stream;
-	Bool adjust_carousel_time;
 	Bool discard;
 	Bool rap;
 	Bool critical;
@@ -237,88 +215,6 @@ enum
 #endif
 };
 
-static u32 format_af_descriptor(char *af_data, u64 timecode, u32 timescale, u64 ntp, const char *temi_url, u32 *last_url_time)
-{
-	u32 res;
-	u32 len;
-	u32 last_time;
-	GF_BitStream *bs = gf_bs_new(af_data, 188, GF_BITSTREAM_WRITE);
-
-	if (ntp) {
-		last_time = 1000*(ntp>>32);
-		last_time += 1000*(ntp&0xFFFFFFFF)/0xFFFFFFFF;
-	} else {
-		last_time = (u32) (1000*timecode/timescale);
-	}
-	if (temi_url && (!*last_url_time || (last_time - *last_url_time + 1 >= temi_url_insertion_delay)) ) {
-		*last_url_time = last_time + 1;
-		len = 0;
-		gf_bs_write_int(bs,	GF_M2TS_AFDESC_LOCATION_DESCRIPTOR, 8);
-		gf_bs_write_int(bs,	len, 8);
-
-		gf_bs_write_int(bs,	0, 1); //force_reload
-		gf_bs_write_int(bs,	0, 1); //is_announcement
-		gf_bs_write_int(bs,	0, 1); //splicing_flag
-		gf_bs_write_int(bs,	0, 1); //use_base_temi_url
-		gf_bs_write_int(bs,	0xFF, 5); //reserved
-		gf_bs_write_int(bs,	0, 7); //timeline_id
-
-		if (strlen(temi_url)) {
-			char *url = (char *)temi_url;
-			if (!strnicmp(temi_url, "http://", 7)) {
-				gf_bs_write_int(bs,	1, 8); //url_scheme
-				url = (char *) temi_url + 7;
-			} else if (!strnicmp(temi_url, "https://", 8)) {
-				gf_bs_write_int(bs,	2, 8); //url_scheme
-				url = (char *) temi_url + 8;
-			} else {
-				gf_bs_write_int(bs,	0, 8); //url_scheme
-			}
-			gf_bs_write_u8(bs, (u32) strlen(url)); //url_path_len
-			gf_bs_write_data(bs, url, (u32) strlen(url) ); //url
-			gf_bs_write_u8(bs, 0); //nb_addons
-		}
-		//rewrite len
-		len = (u32) gf_bs_get_position(bs) - 2;
-		af_data[1] = len;
-	}
-
-	if (timescale || ntp) {
-		Bool use64 = (timecode > 0xFFFFFFFFUL) ? 1 : 0;
-		len = 3; //3 bytes flags
-
-		if (timescale) len += 4 + (use64 ? 8 : 4);
-		if (ntp) len += 8;
-
-		//write timeline descriptor
-		gf_bs_write_int(bs,	GF_M2TS_AFDESC_TIMELINE_DESCRIPTOR, 8);
-		gf_bs_write_int(bs,	len, 8);
-
-		gf_bs_write_int(bs,	timescale ? (use64 ? 2 : 1) : 0, 2); //has_timestamp
-		gf_bs_write_int(bs,	ntp ? 1 : 0, 1); //has_ntp
-		gf_bs_write_int(bs,	0, 1); //has_ptp
-		gf_bs_write_int(bs,	0, 2); //has_timecode
-		gf_bs_write_int(bs,	0, 1); //force_reload
-		gf_bs_write_int(bs,	0, 1); //paused
-		gf_bs_write_int(bs,	0, 1); //discontinuity
-		gf_bs_write_int(bs,	0xFF, 7); //reserved
-		gf_bs_write_int(bs,	temi_url ? 0 : 150, 8); //timeline_id
-		if (timescale) {
-			gf_bs_write_u32(bs,	timescale); //timescale
-			if (use64)
-				gf_bs_write_u64(bs,	timecode); //timestamp
-			else
-				gf_bs_write_u32(bs,	(u32) timecode); //timestamp
-		}
-		if (ntp) {
-			gf_bs_write_u64(bs,	ntp); //ntp
-		}
-	}
-	res = (u32) gf_bs_get_position(bs);
-	gf_bs_del(bs);
-	return res;
-}
-
 #ifndef GPAC_DISABLE_ISOM
 
 static GF_Err mp4_input_ctrl(GF_ESInterface *ifce, u32 act_type, void *param)
@@ -347,20 +243,6 @@ static GF_Err mp4_input_ctrl(GF_ESInterface *ifce, u32 act_type, void *param)
 		if (priv->sample->IsRAP) pck.flags |= GF_ESI_DATA_AU_RAP;
 		pck.cts = priv->sample->DTS + priv->ts_offset;
 		if (priv->is_repeat) pck.flags |= GF_ESI_DATA_REPEAT;
-
-		if (priv->insert_temi) {
-			u64 tc = priv->sample->DTS + priv->sample->CTS_Offset;
-			if (temi_disable_loop) {
-				tc += priv->ts_offset;
-			}
-
-			if (temi_offset) {
-				tc += ((u64) temi_offset) * ifce->timescale / 1000;
-			}
-
-			pck.mpeg2_af_descriptors_size = format_af_descriptor(af_data, tc, ifce->timescale, 0, priv->temi_url, &priv->last_temi_url);
-			pck.mpeg2_af_descriptors = af_data;
-		}
 
 		if (priv->nb_repeat_last) {
 			pck.cts += priv->nb_repeat_last*ifce->timescale * priv->image_repeat_ms / 1000;
