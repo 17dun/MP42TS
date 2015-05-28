@@ -48,8 +48,6 @@
 #define MP42TS_PRINT_TIME_MS 500 /*refresh printed info every CLOCK_REFRESH ms*/
 #define MP42TS_VIDEO_FREQ 1000 /*meant to send AVC IDR only every CLOCK_REFRESH ms*/
 
-u32 temi_offset = 0;
-Bool temi_disable_loop = 0;
 FILE *logfile = NULL;
 
 static void on_gpac_log(void *cbk, u32 ll, u32 lm, const char *fmt, va_list list)
@@ -112,10 +110,6 @@ static GFINLINE void usage()
 	        "-pcr-ms N              sets max interval in ms between 2 PCR. Default is 100 ms\n"
 	        "-ttl N                 specifies Time-To-Live for multicast. Default is 1.\n"
 	        "-ifce IPIFCE           specifies default IP interface to use. Default is IF_ANY.\n"
-	        "-temi [URL]            Inserts TEMI time codes in adaptation field. URL is optionnal\n"
-	        "-temi-delay DelayMS    Specifies delay between two TEMI url descriptors (default is 1000)\n"
-	        "-temi-offset OffsetMS  Specifies an offset in ms to add to TEMI (by default TEMI starts at 0)\n"
-	        "-temi-noloop           Do not restart the TEMI timeline at the end of the source\n"
 	        "-sdt-rate MS           Gives the SDT carrousel rate in milliseconds. If 0 (default), SDT is not sent\n"
 	        "\n"
 	        "MPEG-4/T-DMB options:\n"
@@ -191,12 +185,6 @@ typedef struct
 	Bool is_repeat;
 	s64 ts_offset;
 	M2TSSource *source;
-
-	const char *temi_url;
-	u32 last_temi_url;
-	Bool insert_temi;
-	Bool insert_ntp;
-
 } GF_ESIMP4;
 #endif
 
@@ -230,7 +218,6 @@ static u32 audio_OD_stream_id = (u32)-1;
 
 static GF_Err mp4_input_ctrl(GF_ESInterface *ifce, u32 act_type, void *param)
 {
-	char af_data[188];
 	GF_ESIMP4 *priv = (GF_ESIMP4 *)ifce->input_udta;
 	if (!priv) return GF_BAD_PARAM;
 
@@ -254,27 +241,6 @@ static GF_Err mp4_input_ctrl(GF_ESInterface *ifce, u32 act_type, void *param)
 		if (priv->sample->IsRAP) pck.flags |= GF_ESI_DATA_AU_RAP;
 		pck.cts = priv->sample->DTS + priv->ts_offset;
 		if (priv->is_repeat) pck.flags |= GF_ESI_DATA_REPEAT;
-
-		if (priv->insert_temi) {
-			u64 ntp=0;
-			u64 tc = priv->sample->DTS + priv->sample->CTS_Offset;
-			if (temi_disable_loop) {
-				tc += priv->ts_offset;
-			}
-
-			if (temi_offset) {
-				tc += ((u64) temi_offset) * ifce->timescale / 1000;
-			}
-
-			if (priv->insert_ntp) {
-				u32 sec, frac;
-				gf_net_get_ntp(&sec, &frac);
-				ntp = sec;
-				ntp <<= 32;
-				ntp |= frac;
-			}
-			pck.mpeg2_af_descriptors = af_data;
-		}
 
 		if (priv->nb_repeat_last) {
 			pck.cts += priv->nb_repeat_last*ifce->timescale * priv->image_repeat_ms / 1000;
@@ -939,7 +905,7 @@ static u32 seng_output(void *param)
 
 #endif
 
-static Bool open_source(M2TSSource *source, char *src, u32 carousel_rate, u32 mpeg4_signaling, char *update, u16 audio_input_port, char *video_buffer, Bool force_real_time, u32 bifs_use_pes, Bool compute_max_size, Bool insert_ntp)
+static Bool open_source(M2TSSource *source, char *src, u32 carousel_rate, u32 mpeg4_signaling, char *update, u16 audio_input_port, char *video_buffer, Bool force_real_time, u32 bifs_use_pes, Bool compute_max_size)
 {
 #ifndef GPAC_DISABLE_STREAMING
 	GF_SDPInfo *sdp;
@@ -1285,7 +1251,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, u32 *car
                                   char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, u32 *sdt_refresh_rate)
 {
 	Bool rate_found=0, mpeg4_carousel_found=0, time_found=0, src_found=0, dst_found=0, video_input_found=0,
-	     seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0, insert_ntp=0;
+	     seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0;
 	char *arg = NULL, *next_arg = NULL, *error_msg = "no argument found";
 	u32 mpeg4_signaling = GF_M2TS_MPEG4_SIGNALING_NONE;
 	Bool force_real_time = 0;
@@ -1474,7 +1440,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, u32 *car
 			src_args = src_args + 1;
 		}
 
-		res = open_source(&sources[*nb_sources], next_arg, *carrousel_rate, mpeg4_signaling, *bifs_src_name, *audio_input_port, *video_buffer, force_real_time, *bifs_use_pes, (*pcr_offset == (u32) -1) ? 1 : 0, insert_ntp);
+		res = open_source(&sources[*nb_sources], next_arg, *carrousel_rate, mpeg4_signaling, *bifs_src_name, *audio_input_port, *video_buffer, force_real_time, *bifs_use_pes, (*pcr_offset == (u32) -1) ? 1 : 0);
 
 
 		//we may have arguments
