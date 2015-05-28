@@ -1796,8 +1796,8 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, u32 *car
                                   M2TSSource *sources, u32 *nb_sources, char **bifs_src_name,
                                   Bool *real_time, u32 *run_time, char **video_buffer, u32 *video_buffer_size,
                                   u32 *audio_input_type, char **audio_input_ip, u16 *audio_input_port,
-                                  u32 *output_type, char **ts_out, char **udp_out, char **rtp_out, u16 *output_port,
-                                  char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, const char **ip_ifce, const char **temi_url, u32 *sdt_refresh_rate)
+                                  u32 *output_type, char **ts_out, u16 *output_port,
+                                  char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, const char **temi_url, u32 *sdt_refresh_rate)
 {
 	Bool rate_found=0, mpeg4_carousel_found=0, time_found=0, src_found=0, dst_found=0, audio_input_found=0, video_input_found=0,
 	     seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0, insert_ntp=0;
@@ -1950,8 +1950,6 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, u32 *car
 			*pcr_ms = atoi(next_arg);
 		} else if (CHECK_PARAM("-ttl")) {
 			*ttl = atoi(next_arg);
-		} else if (CHECK_PARAM("-ifce")) {
-			*ip_ifce = next_arg;
 		} else if (CHECK_PARAM("-sdt-rate")) {
 			*sdt_refresh_rate = atoi(next_arg);
 		}
@@ -2025,32 +2023,8 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, u32 *car
 		} else if (!stricmp(arg, "-insert-ntp")) {
 			insert_ntp = GF_TRUE;
 		}
-		else if (CHECK_PARAM("-dst-udp")) {
-			char *sep = strchr(next_arg, ':');
-			dst_found = 1;
-			*real_time=1;
-			if (sep) {
-				*output_port = atoi(sep+1);
-				sep[0]=0;
-				*udp_out = gf_strdup(next_arg);
-				sep[0]=':';
-			} else {
-				*udp_out = gf_strdup(next_arg);
-			}
-		}
-		else if (CHECK_PARAM("-dst-rtp")) {
-			char *sep = strchr(next_arg, ':');
-			dst_found = 1;
-			*real_time=1;
-			if (sep) {
-				*output_port = atoi(sep+1);
-				sep[0]=0;
-				*rtp_out = gf_strdup(next_arg);
-				sep[0]=':';
-			} else {
-				*rtp_out = gf_strdup(next_arg);
-			}
-		} else if (CHECK_PARAM("-src")) { //second pass arguments
+		
+		else if (CHECK_PARAM("-src")) { //second pass arguments
 		} else if (CHECK_PARAM("-prog")) { //second pass arguments
 		}
 		else {
@@ -2197,14 +2171,9 @@ int main(int argc, char **argv)
 	s64 pcr_init_val = -1;
 	u32 usec_till_next, ttl, split_rap, sdt_refresh_rate;
 	u32 i, j, mux_rate, nb_sources, cur_pid, carrousel_rate, last_print_time, last_video_time, bifs_use_pes, psi_refresh_rate, nb_pck_pack, nb_pck_in_pack, pcr_ms;
-	char *ts_out = NULL, *udp_out = NULL, *rtp_out = NULL, *audio_input_ip = NULL;
+	char *ts_out = NULL, *audio_input_ip = NULL;
 	FILE *ts_output_file = NULL;
-	GF_Socket *ts_output_udp_sk = NULL, *audio_input_udp_sk = NULL;
-#ifndef GPAC_DISABLE_STREAMING
-	GF_RTPChannel *ts_output_rtp = NULL;
-	GF_RTSPTransport tr;
-	GF_RTPHeader hdr;
-#endif
+	GF_Socket *audio_input_udp_sk = NULL;
 	char *video_buffer;
 	u32 video_buffer_size;
 	u16 output_port = 0, audio_input_port = 0;
@@ -2219,7 +2188,6 @@ int main(int argc, char **argv)
 	char *segment_manifest, *segment_http_prefix, *segment_dir;
 	char segment_prefix[GF_MAX_PATH];
 	char segment_name[GF_MAX_PATH];
-	const char *ip_ifce = NULL;
 	GF_M2TS_Time prev_seg_time;
 	GF_M2TS_Mux *muxer;
 
@@ -2239,12 +2207,6 @@ int main(int argc, char **argv)
 	last_video_time = 0;
 	audio_input_type = 0;
 	sdt_refresh_rate = 0;
-	ts_output_udp_sk = NULL;
-	udp_out = NULL;
-#ifndef GPAC_DISABLE_STREAMING
-	ts_output_rtp = NULL;
-	rtp_out = NULL;
-#endif
 	ts_out = NULL;
 	bifs_src_name = NULL;
 	nb_sources = 0;
@@ -2280,8 +2242,8 @@ int main(int argc, char **argv)
 	if (GF_OK != parse_args(argc, argv, &mux_rate, &carrousel_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, &bifs_use_pes, sources, &nb_sources, &bifs_src_name,
 	                        &real_time, &run_time, &video_buffer, &video_buffer_size,
 	                        &audio_input_type, &audio_input_ip, &audio_input_port,
-	                        &output_type, &ts_out, &udp_out, &rtp_out, &output_port,
-	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms, &ttl, &ip_ifce, &insert_temi, &sdt_refresh_rate)) {
+	                        &output_type, &ts_out, &output_port,
+	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms, &ttl, &insert_temi, &sdt_refresh_rate)) {
 		goto exit;
 	}
 
@@ -2332,56 +2294,6 @@ int main(int argc, char **argv)
 			goto exit;
 		}
 	}
-	if (udp_out != NULL) {
-		ts_output_udp_sk = gf_sk_new(GF_SOCK_TYPE_UDP);
-		if (gf_sk_is_multicast_address((char *)udp_out)) {
-			e = gf_sk_setup_multicast(ts_output_udp_sk, (char *)udp_out, output_port, ttl, 0, (char *) ip_ifce);
-		} else {
-			e = gf_sk_bind(ts_output_udp_sk, ip_ifce, output_port, (char *)udp_out, output_port, GF_SOCK_REUSE_PORT);
-		}
-		if (e) {
-			fprintf(stderr, "Error initializing UDP socket: %s\n", gf_error_to_string(e));
-			goto exit;
-		}
-	}
-#ifndef GPAC_DISABLE_STREAMING
-	if (rtp_out != NULL) {
-		ts_output_rtp = gf_rtp_new();
-		gf_rtp_set_ports(ts_output_rtp, output_port);
-		memset(&tr, 0, sizeof(GF_RTSPTransport));
-		tr.IsUnicast = gf_sk_is_multicast_address((char *)rtp_out) ? 0 : 1;
-		tr.Profile="RTP/AVP";
-		tr.destination = (char *)rtp_out;
-		tr.source = "0.0.0.0";
-		tr.IsRecord = 0;
-		tr.Append = 0;
-		tr.SSRC = rand();
-		tr.port_first = output_port;
-		tr.port_last = output_port+1;
-		if (tr.IsUnicast) {
-			tr.client_port_first = output_port;
-			tr.client_port_last = output_port+1;
-		} else {
-			tr.source = (char *)rtp_out;
-			tr.TTL = ttl;
-		}
-		e = gf_rtp_setup_transport(ts_output_rtp, &tr, (char *)ts_out);
-		if (e != GF_OK) {
-			fprintf(stderr, "Cannot setup RTP transport info : %s\n", gf_error_to_string(e));
-			goto exit;
-		}
-		e = gf_rtp_initialize(ts_output_rtp, 0, 1, 1500, 0, 0, (char *) ip_ifce);
-		if (e != GF_OK) {
-			fprintf(stderr, "Cannot initialize RTP sockets : %s\n", gf_error_to_string(e));
-			goto exit;
-		}
-		memset(&hdr, 0, sizeof(GF_RTPHeader));
-		hdr.Version = 2;
-		hdr.PayloadType = 33;	/*MP2T*/
-		hdr.SSRC = tr.SSRC;
-		hdr.Marker = 0;
-	}
-#endif /*GPAC_DISABLE_STREAMING*/
 
 	/************************************/
 	/*   create streaming audio input   */
@@ -2597,29 +2509,8 @@ call_flush:
 				}
 			}
 
-			if (ts_output_udp_sk != NULL) {
-				e = gf_sk_send(ts_output_udp_sk, (char*)ts_pck, 188 * nb_pck_in_pack);
-				if (e) {
-					fprintf(stderr, "Error %s sending UDP packet\n", gf_error_to_string(e));
-				}
-			}
-#ifndef GPAC_DISABLE_STREAMING
-			if (ts_output_rtp != NULL) {
-				u32 ts;
-				hdr.SequenceNumber++;
-				/*muxer clock at 90k*/
-				ts = muxer->time.sec*90000 + muxer->time.nanosec*9/100000;
-				/*FIXME - better discontinuity check*/
-				hdr.Marker = (ts < hdr.TimeStamp) ? 1 : 0;
-				hdr.TimeStamp = ts;
-				e = gf_rtp_send_packet(ts_output_rtp, &hdr, (char*)ts_pck, 188 * nb_pck_in_pack, 0);
-				if (e) {
-					fprintf(stderr, "Error %s sending RTP packet\n", gf_error_to_string(e));
-				}
-			}
-#endif
-
-			nb_pck_in_pack = 0;
+			
+		nb_pck_in_pack = 0;
 
 			if (status>=GF_M2TS_STATE_PADDING) {
 				break;
@@ -2695,20 +2586,12 @@ exit:
 		write_manifest(segment_manifest, segment_dir, segment_duration, segment_prefix, segment_http_prefix, segment_index - segment_number, segment_index, 1);
 	}
 	if (ts_output_file && !is_stdout) gf_fclose(ts_output_file);
-	if (ts_output_udp_sk) gf_sk_del(ts_output_udp_sk);
-#ifndef GPAC_DISABLE_STREAMING
-	if (ts_output_rtp) gf_rtp_del(ts_output_rtp);
-#endif
 	if (ts_out) gf_free(ts_out);
 	if (audio_input_udp_sk) gf_sk_del(audio_input_udp_sk);
 	if (audio_input_buffer) gf_free (audio_input_buffer);
 	if (video_buffer) gf_free(video_buffer);
-	if (udp_out) gf_free(udp_out);
-#ifndef GPAC_DISABLE_STREAMING
-	if (rtp_out) gf_free(rtp_out);
-#endif
-	if (muxer) gf_m2ts_mux_del(muxer);
 
+	if (muxer) gf_m2ts_mux_del(muxer);
 	for (i=0; i<nb_sources; i++) {
 		for (j=0; j<sources[i].nb_streams; j++) {
 			if (sources[i].streams[j].input_ctrl) sources[i].streams[j].input_ctrl(&sources[i].streams[j], GF_ESI_INPUT_DESTROY, NULL);
