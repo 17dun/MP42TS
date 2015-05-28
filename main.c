@@ -1843,50 +1843,6 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, u32 *car
 					fprintf(stderr, "Error while reading video file, has readen %u chars instead of %u.\n", read, *video_buffer_size);
 			}
 			gf_fclose(f);
-		} else if (CHECK_PARAM("-audio")) {
-			if (audio_input_found) {
-				error_msg = "multiple '-audio' found";
-				arg = NULL;
-				goto error;
-			}
-			audio_input_found = 1;
-			if (!strnicmp(next_arg, "udp://", 6) || !strnicmp(next_arg, "rtp://", 6) || !strnicmp(next_arg, "http://", 7)) {
-				char *sep;
-				/*set audio input type*/
-				if (!strnicmp(next_arg, "udp://", 6))
-					*audio_input_type = GF_MP42TS_UDP;
-				else if (!strnicmp(next_arg, "rtp://", 6))
-					*audio_input_type = GF_MP42TS_RTP;
-#ifndef GPAC_DISABLE_PLAYER
-				else if (!strnicmp(next_arg, "http://", 7))
-					*audio_input_type = GF_MP42TS_HTTP;
-#endif
-				/*http needs to get the complete URL*/
-				switch(*audio_input_type) {
-				case GF_MP42TS_UDP:
-				case GF_MP42TS_RTP:
-					sep = strchr(next_arg+6, ':');
-					*real_time=1;
-					if (sep) {
-						*audio_input_port = atoi(sep+1);
-						sep[0]=0;
-						*audio_input_ip = gf_strdup(next_arg+6);
-						sep[0]=':';
-					} else {
-						*audio_input_ip = gf_strdup(next_arg+6);
-					}
-					break;
-#ifndef GPAC_DISABLE_PLAYER
-				case GF_MP42TS_HTTP:
-					/* No need to dup since it may come from argv */
-					*audio_input_ip = next_arg;
-					assert(audio_input_port != 0);
-					break;
-#endif
-				default:
-					assert(0);
-				}
-			}
 		} else if (CHECK_PARAM("-psi-rate")) {
 			*psi_refresh_rate = atoi(next_arg);
 		} else if (!stricmp(arg, "-bifs-pes")) {
