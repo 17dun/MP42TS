@@ -48,7 +48,6 @@
 #define MP42TS_PRINT_TIME_MS 500 /*refresh printed info every CLOCK_REFRESH ms*/
 #define MP42TS_VIDEO_FREQ 1000 /*meant to send AVC IDR only every CLOCK_REFRESH ms*/
 
-u32 temi_url_insertion_delay = 1000;
 u32 temi_offset = 0;
 Bool temi_disable_loop = 0;
 FILE *logfile = NULL;
@@ -580,7 +579,8 @@ static void SampleCallBack(void *calling_object, u16 ESID, char *data, u32 size,
 	u32 i;
 	//fprintf(stderr, "update: ESID=%d - size=%d - ts="LLD"\n", ESID, size, ts);
 
-	if (calling_object) {
+	if (calling_object) 
+	{
 		M2TSSource *source = (M2TSSource *)calling_object;
 
 #ifndef GPAC_DISABLE_PLAYER
@@ -939,7 +939,7 @@ static u32 seng_output(void *param)
 
 #endif
 
-static Bool open_source(M2TSSource *source, char *src, u32 carousel_rate, u32 mpeg4_signaling, char *update, u16 audio_input_port, char *video_buffer, Bool force_real_time, u32 bifs_use_pes, const char *temi_url, Bool compute_max_size, Bool insert_ntp)
+static Bool open_source(M2TSSource *source, char *src, u32 carousel_rate, u32 mpeg4_signaling, char *update, u16 audio_input_port, char *video_buffer, Bool force_real_time, u32 bifs_use_pes, Bool compute_max_size, Bool insert_ntp)
 {
 #ifndef GPAC_DISABLE_STREAMING
 	GF_SDPInfo *sdp;
@@ -993,16 +993,8 @@ static Bool open_source(M2TSSource *source, char *src, u32 carousel_rate, u32 mp
 					check_deps = 1;
 					if (gf_isom_get_sample_count(source->mp4, i+1)>1) {
 						/*get first visual stream as PCR*/
-						if (!source->pcr_idx) {
+						if (!source->pcr_idx) 
 							source->pcr_idx = i+1;
-							if (temi_url) {
-								((GF_ESIMP4 *)source->streams[i].input_udta)->insert_temi = GF_TRUE;
-								if (insert_ntp) 
-									((GF_ESIMP4 *)source->streams[i].input_udta)->insert_ntp = GF_TRUE;
-								if (strcmp(temi_url, "NOTEMIURL"))
-									((GF_ESIMP4 *)source->streams[i].input_udta)->temi_url = temi_url;
-							}
-						}
 					}
 					break;
 				}
@@ -1290,7 +1282,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, u32 *car
                                   Bool *real_time, u32 *run_time, char **video_buffer, u32 *video_buffer_size,                                 
                                   u16 *audio_input_port,
                                   u32 *output_type, char **ts_out, u16 *output_port,
-                                  char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, const char **temi_url, u32 *sdt_refresh_rate)
+                                  char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, u32 *sdt_refresh_rate)
 {
 	Bool rate_found=0, mpeg4_carousel_found=0, time_found=0, src_found=0, dst_found=0, video_input_found=0,
 	     seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0, insert_ntp=0;
@@ -1451,27 +1443,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, u32 *car
 		} else if (CHECK_PARAM("-dst-file")) {
 			dst_found = 1;
 			*ts_out = gf_strdup(next_arg);
-		} else if (CHECK_PARAM("-temi")) {
-			if (next_arg[0]=='-') {
-				*temi_url = "NOTEMIURL";
-				i--;
-			} else {
-				*temi_url = next_arg;
-				if (strlen(next_arg) > 150) {
-					fprintf(stderr, "URLs longer than 150 bytes are not currently supported\n");
-					return GF_NOT_SUPPORTED;
-				}
-			}
-		}
-		else if (CHECK_PARAM("-temi-delay")) {
-			temi_url_insertion_delay = atoi(next_arg);
-		} else if (CHECK_PARAM("-temi-offset")) {
-			temi_offset = atoi(next_arg);
-		} else if (!stricmp(arg, "-temi-noloop")) {
-			temi_disable_loop = 1;
-		} else if (!stricmp(arg, "-insert-ntp")) {
-			insert_ntp = GF_TRUE;
-		}
+		} 
 		
 		else if (CHECK_PARAM("-src")) { //second pass arguments
 		} else if (CHECK_PARAM("-prog")) { //second pass arguments
@@ -1502,7 +1474,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, u32 *car
 			src_args = src_args + 1;
 		}
 
-		res = open_source(&sources[*nb_sources], next_arg, *carrousel_rate, mpeg4_signaling, *bifs_src_name, *audio_input_port, *video_buffer, force_real_time, *bifs_use_pes, *temi_url, (*pcr_offset == (u32) -1) ? 1 : 0, insert_ntp);
+		res = open_source(&sources[*nb_sources], next_arg, *carrousel_rate, mpeg4_signaling, *bifs_src_name, *audio_input_port, *video_buffer, force_real_time, *bifs_use_pes, (*pcr_offset == (u32) -1) ? 1 : 0, insert_ntp);
 
 
 		//we may have arguments
@@ -1627,7 +1599,6 @@ int main(int argc, char **argv)
 	u16 output_port = 0, audio_input_port = 0;
 	u32 output_type, pcr_offset;
 	char *bifs_src_name;
-	const char *insert_temi = 0;
 	M2TSSource sources[MAX_MUX_SRC_PROG];
 	u32 segment_duration, segment_index, segment_number;
 	char segment_manifest_default[GF_MAX_PATH];
@@ -1687,7 +1658,7 @@ int main(int argc, char **argv)
 	if (GF_OK != parse_args(argc, argv, &mux_rate, &carrousel_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, &bifs_use_pes, sources, &nb_sources, &bifs_src_name,
 	                        &real_time, &run_time, &video_buffer, &video_buffer_size, &audio_input_port,
 	                        &output_type, &ts_out, &output_port,
-	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms, &ttl, &insert_temi, &sdt_refresh_rate)) {
+	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms, &ttl, &sdt_refresh_rate)) {
 		goto exit;
 	}
 
