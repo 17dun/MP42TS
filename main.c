@@ -227,17 +227,6 @@ static u32 audio_OD_stream_id = (u32)-1;
 #define AUDIO_DATA_ESID	101
 #define VIDEO_DATA_ESID	105
 
-/*output types*/
-enum
-{
-	GF_MP42TS_FILE, /*open mpeg2ts file*/
-	GF_MP42TS_UDP,  /*open udp socket*/
-	GF_MP42TS_RTP,  /*open rtp socket*/
-#ifndef GPAC_DISABLE_PLAYER
-	GF_MP42TS_HTTP,	/*open http downloader*/
-#endif
-};
-
 static u32 format_af_descriptor(char *af_data, u64 timecode, u32 timescale, u64 ntp, const char *temi_url, u32 *last_url_time)
 {
 	u32 res;
@@ -609,23 +598,6 @@ static void fill_isom_es_ifce(M2TSSource *source, GF_ESInterface *ifce, GF_ISOFi
 }
 
 #endif //GPAC_DISABLE_ISOM
-
-
-#ifndef GPAC_DISABLE_SENG
-static GF_Err seng_input_ctrl(GF_ESInterface *ifce, u32 act_type, void *param)
-{
-	if (act_type==GF_ESI_INPUT_DESTROY) {
-		//TODO: free my data
-		if (ifce->input_udta)
-			gf_free(ifce->input_udta);
-		ifce->input_udta = NULL;
-		return GF_OK;
-	}
-
-	return GF_OK;
-}
-#endif
-
 
 #ifndef GPAC_DISABLE_STREAMING
 typedef struct
@@ -1346,35 +1318,6 @@ static u32 seng_output(void *param)
 	return e ? 1 : 0;
 }
 
-void fill_seng_es_ifce(GF_ESInterface *ifce, u32 i, GF_SceneEngine *seng, u32 period)
-{
-	GF_Err e = GF_OK;
-	u32 len;
-	GF_ESIStream *stream;
-	char *config_buffer = NULL;
-
-	memset(ifce, 0, sizeof(GF_ESInterface));
-	e = gf_seng_get_stream_config(seng, i, (u16*) &(ifce->stream_id), &config_buffer, &len, (u32*) &(ifce->stream_type), (u32*) &(ifce->object_type_indication), &(ifce->timescale));
-	if (e) {
-		fprintf(stderr, "Cannot set the stream config for stream %d to %d: %s\n", ifce->stream_id, period, gf_error_to_string(e));
-	}
-
-	ifce->repeat_rate = period;
-	GF_SAFEALLOC(stream, GF_ESIStream);
-	memset(stream, 0, sizeof(GF_ESIStream));
-	stream->rap = 1;
-	if (ifce->input_udta)
-		gf_free(ifce->input_udta);
-	ifce->input_udta = stream;
-
-	//fprintf(stderr, "Caroussel period: %d\n", period);
-//	e = gf_seng_set_carousel_time(seng, ifce->stream_id, period);
-	if (e) {
-		fprintf(stderr, "Cannot set carousel time on stream %d to %d: %s\n", ifce->stream_id, period, gf_error_to_string(e));
-	}
-	ifce->input_ctrl = seng_input_ctrl;
-
-}
 #endif
 
 static Bool open_source(M2TSSource *source, char *src, u32 carousel_rate, u32 mpeg4_signaling, char *update, u16 audio_input_port, char *video_buffer, Bool force_real_time, u32 bifs_use_pes, const char *temi_url, Bool compute_max_size, Bool insert_ntp)
@@ -1629,7 +1572,6 @@ static Bool open_source(M2TSSource *source, char *src, u32 carousel_rate, u32 mp
 #ifndef GPAC_DISABLE_SENG
 		if (strstr(src, ".bt")) //open .bt file
 		{
-			u32 i;
 			u32 load_type=0;
 			source->seng = gf_seng_init(source, src, load_type, NULL, (load_type == GF_SM_LOAD_DIMS) ? 1 : 0);
 			if (!source->seng) {
@@ -1649,16 +1591,6 @@ static Bool open_source(M2TSSource *source, char *src, u32 carousel_rate, u32 mp
 			source->nb_streams = gf_seng_get_stream_count(source->seng);
 			source->rate = carousel_rate;
 			source->mpeg4_signaling = GF_M2TS_MPEG4_SIGNALING_FULL;
-
-			for (i=0; i<source->nb_streams; i++) {
-				fill_seng_es_ifce(&source->streams[i], i, source->seng, source->rate);
-				//fprintf(stderr, "Fill interface\n");
-				if (!source->pcr_idx && (source->streams[i].stream_type == GF_STREAM_AUDIO)) {
-					source->pcr_idx = i+1;
-				}
-			}
-
-			
 
 			/*when an audio input is present, declare it and store OD + ESD_U*/
 			if (video_buffer) {
@@ -2190,9 +2122,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	/************************************/
-	/*   create streaming audio input   */
-	/************************************/
 	if (!nb_sources) {
 		fprintf(stderr, "No program to mux, quitting.\n");
 	}
@@ -2336,9 +2265,9 @@ call_flush:
 			
 		nb_pck_in_pack = 0;
 
-			if (status>=GF_M2TS_STATE_PADDING) {
+			if (status>=GF_M2TS_STATE_PADDING)
 				break;
-			}
+			
 		}
 		if (nb_pck_in_pack) {
 			ts_pck = (const char *) ts_pack_buffer;
@@ -2457,4 +2386,7 @@ exit:
 #endif
 	return 0;
 }
+
+
+
 
