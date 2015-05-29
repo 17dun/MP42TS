@@ -190,9 +190,8 @@ typedef struct
 
 typedef struct
 {
-	u32 carousel_period, ts_delta;
+	u32 ts_delta;
 	u16 aggregate_on_stream;
-	Bool adjust_carousel_time;
 	Bool discard;
 	Bool rap;
 	Bool critical;
@@ -669,7 +668,7 @@ static void SampleCallBack(void *calling_object, u16 ESID, char *data, u32 size,
 static volatile Bool run = 1;
 
 #ifndef GPAC_DISABLE_SENG
-static GF_ESIStream * set_broadcast_params(M2TSSource *source, u16 esid, u32 period, u32 ts_delta, u16 aggregate_on_stream, Bool adjust_carousel_time, Bool force_rap, Bool aggregate_au, Bool discard_pending, Bool signal_rap, Bool signal_critical, Bool version_inc)
+static GF_ESIStream * set_broadcast_params(M2TSSource *source, u16 esid, u32 period, u32 ts_delta, u16 aggregate_on_stream, Bool force_rap, Bool aggregate_au, Bool discard_pending, Bool signal_rap, Bool signal_critical, Bool version_inc)
 {
 	u32 i=0;
 	GF_ESIStream *priv=NULL;
@@ -703,8 +702,7 @@ static GF_ESIStream * set_broadcast_params(M2TSSource *source, u16 esid, u32 per
 	priv->vers_inc = version_inc;
 
 	priv->ts_delta = ts_delta;
-	priv->adjust_carousel_time = adjust_carousel_time;
-
+	
 	/*change stream aggregation mode*/
 	if ((aggregate_on_stream != (u16)-1) && (priv->aggregate_on_stream != aggregate_on_stream)) {
 		gf_seng_enable_aggregation(source->seng, esid, aggregate_on_stream);
@@ -732,7 +730,7 @@ static u32 seng_output(void *param)
 	GF_SceneEngine *seng = source->seng;
 	GF_SimpleDataDescriptor *audio_desc;
 	Bool update_context=0;
-	Bool force_rap, adjust_carousel_time, discard_pending, signal_rap, signal_critical, version_inc, aggregate_au;
+	Bool force_rap, discard_pending, signal_rap, signal_critical, version_inc, aggregate_au;
 	u32 period, ts_delta;
 	u16 es_id, aggregate_on_stream;
 	e = GF_OK;
@@ -775,7 +773,7 @@ static u32 seng_output(void *param)
 						flag_buf[0] = '\0';
 					gf_fclose(srcf);
 
-					aggregate_au = force_rap = adjust_carousel_time = discard_pending = signal_rap = signal_critical = 0;
+					aggregate_au = force_rap /*= adjust_carousel_time*/ = discard_pending = signal_rap = signal_critical = 0;
 					version_inc = 1;
 					period = -1;
 					aggregate_on_stream = -1;
@@ -804,9 +802,6 @@ static u32 seng_output(void *param)
 							} else if (!strnicmp(flag, "carousel=", 9)) {
 								/*TODO: why? => sends the update on carousel id specified by this argument*/
 								aggregate_on_stream = atoi(flag+9);
-							} else if (!strnicmp(flag, "restamp=", 8)) {
-								/*CTS is updated when carouselled*/
-								adjust_carousel_time = atoi(flag+8);
 							} else if (!strnicmp(flag, "discard=", 8)) {
 								/*when we receive several updates during a single carousel period, this attribute specifies whether the current update discard pending ones*/
 								discard_pending = atoi(flag+8);
@@ -834,7 +829,7 @@ static u32 seng_output(void *param)
 							}
 						}
 
-						set_broadcast_params(source, es_id, period, ts_delta, aggregate_on_stream, adjust_carousel_time, force_rap, aggregate_au, discard_pending, signal_rap, signal_critical, version_inc);
+						set_broadcast_params(source, es_id, period, ts_delta, aggregate_on_stream, force_rap, aggregate_au, discard_pending, signal_rap, signal_critical, version_inc);
 					}
 
 					e = gf_seng_encode_from_file(seng, es_id, aggregate_au ? 0 : 1, source->bifs_src_name, SampleCallBack);
@@ -1940,7 +1935,3 @@ exit:
 #endif
 	return 0;
 }
-
-
-
-
