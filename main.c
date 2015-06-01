@@ -27,13 +27,10 @@
 #include <gpac/constants.h>
 #include <gpac/base_coding.h>
 #include <gpac/mpegts.h>
+#include <stdbool.h>
 
 #ifndef GPAC_DISABLE_STREAMING
 #include <gpac/internal/ietf_dev.h>
-#endif
-
-#ifndef GPAC_DISABLE_SENG
-#include <gpac/scene_engine.h>
 #endif
 
 #ifndef GPAC_DISABLE_TTXT
@@ -81,8 +78,6 @@ static GFINLINE void usage()
 	        "\n"
 	        "Destinations:\n"
 	        "Several destinations may be specified as follows, at least one is mandatory\n"
-	        "-dst-udp UDP_address:port (multicast or unicast)\n"
-	        "-dst-rtp RTP_address:port\n"
 	        "-dst-file filename\n"
 	        "The following parameters may be specified when -dst-file is used\n"
 	        "-segment-dir dir       server local directory to store segments (ends with a '/')\n"
@@ -114,12 +109,8 @@ static GFINLINE void usage()
 	        "\n"
 	        "MPEG-4/T-DMB options:\n"
 	        "-bifs-src filename          update file: must be either an .sdp or a .bt file\n"
-	        "-audio url             may be mp3/udp or aac/http (shoutcast/icecast)\n"
-	        "-video url             shall be a raw h264 frame\n"
 	        "-mpeg4 or -4on2        forces usage of MPEG-4 signaling (IOD and SL Config)\n"
 	        "-4over2                same as -4on2 and uses PMT to carry OD Updates\n"
-	        "-bifs-pes              carries BIFS over PES instead of sections\n"
-	        "-bifs-pes-ex           carries BIFS over PES without writing timestamps in SL\n"
 	        "\n"
 	        "Misc options\n"
 #ifdef GPAC_MEMORY_TRACKING
@@ -193,14 +184,6 @@ typedef struct
 	Bool vers_inc;
 } GF_ESIStream;
 
-typedef struct
-{
-	u32 size;
-	char *data;
-} GF_SimpleDataDescriptor;
-
-#define AUDIO_OD_ESID	100
-#define AUDIO_DATA_ESID	101
 #define VIDEO_DATA_ESID	105
 
 #ifndef GPAC_DISABLE_ISOM
@@ -505,7 +488,7 @@ static void SampleCallBack(void *calling_object, u16 ESID, char *data, u32 size,
 static volatile Bool run = 1;
 
 
-static Bool open_source(M2TSSource *source, char *src, u32 mpeg4_signaling, char *update, u16 audio_input_port, char *video_buffer, Bool force_real_time, Bool compute_max_size)
+static Bool open_source(M2TSSource *source, char *src, u32 mpeg4_signaling, char *update, char *video_buffer, Bool force_real_time, Bool compute_max_size)
 {
 	s64 min_offset = 0;
 
@@ -669,7 +652,6 @@ static Bool enable_mem_tracker = GF_FALSE;
 /*parse MP42TS arguments*/
 static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr_init_val, u32 *pcr_offset, u32 *psi_refresh_rate, Bool *single_au_pes, M2TSSource *sources, u32 *nb_sources, char **bifs_src_name,
                                   Bool *real_time, u32 *run_time, char **video_buffer, u32 *video_buffer_size,                                 
-                                  u16 *audio_input_port,
                                   u32 *output_type, char **ts_out, u16 *output_port,
                                   char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, u32 *sdt_refresh_rate)
 {
@@ -714,7 +696,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			{
 				s32 read = (u32) fread(*video_buffer, sizeof(char), *video_buffer_size, f);
 				if (read != *video_buffer_size)
-					fprintf(stderr, "Error while reading video file, has readen %u chars instead of %u.\n", read, *video_buffer_size);
+					fprintf(stderr, "Error while reading video file, has read %u chars instead of %u.\n", read, *video_buffer_size);
 			}
 			gf_fclose(f);
 		} else if (CHECK_PARAM("-psi-rate")) {
@@ -822,9 +804,8 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			*ts_out = gf_strdup(next_arg);
 		} 
 		
-		else if (CHECK_PARAM("-src")) { //second pass arguments
-		} else if (CHECK_PARAM("-prog")) { //second pass arguments
-		}
+		else if (CHECK_PARAM("-src")) {} //second pass arguments
+		else if (CHECK_PARAM("-prog")){} //second pass arguments
 		else {
 			error_msg = "unknown option";
 			goto error;
@@ -851,7 +832,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			src_args = src_args + 1;
 		}
 
-		res = open_source(&sources[*nb_sources], next_arg, mpeg4_signaling, *bifs_src_name, *audio_input_port, *video_buffer, force_real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
+		res = open_source(&sources[*nb_sources], next_arg, mpeg4_signaling, *bifs_src_name, *video_buffer, force_real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
 
 
 		//we may have arguments
@@ -908,7 +889,6 @@ error:
 	return GF_BAD_PARAM;
 }
 
-
 static GF_Err write_manifest(char *manifest, char *segment_dir, u32 segment_duration, char *segment_prefix, char *http_prefix, u32 first_segment, u32 last_segment, Bool end)
 {
 	#define arg_check(hey) hey == NULL ? "" : hey
@@ -960,26 +940,36 @@ int main(int argc, char **argv)
 	/*   declarations   */
 	/********************/
 	const char *ts_pck;
-	char *ts_pack_buffer = NULL;
-	u32 run_time;
-	Bool real_time, single_au_pes, is_stdout;
+	char *ts_pack_buffer      = NULL;
+	char *ts_out              = NULL;
+	char *video_buffer        = NULL;
+	char *bifs_src_name       = NULL;
+	char *segment_manifest    = NULL;
+	char *segment_dir         = NULL;
+	char *segment_http_prefix = NULL;
+	u32 ttl         = 1;
+	u32 nb_pck_pack = 1;
+	u32 pcr_offset  = (u32) -1;
+	u32 segment_number    = 10; 
+	u32 pcr_ms            = 100; 
+	u32 run_time          = 0;
+	u32 split_rap         = 0;
+	u32 sdt_refresh_rate  = 0;
+	u32 mux_rate          = 0;
+	u32 nb_sources        = 0;
+	u32 segment_duration  = 0;
+	u32 segment_index     = 0;
+	u32 video_buffer_size = 0;
+	u32 last_video_time   = 0;
+	u32 i, j, cur_pid, last_print_time, psi_refresh_rate, nb_pck_in_pack, usec_till_next, output_type;
+	Bool real_time     = false;
+	Bool single_au_pes = false;
+	Bool is_stdout     = false;
 	s64 pcr_init_val = -1;
-	u32 usec_till_next, ttl, split_rap, sdt_refresh_rate;
-	u32 i, j, mux_rate, nb_sources, cur_pid, last_print_time, last_video_time, psi_refresh_rate, nb_pck_pack, nb_pck_in_pack, pcr_ms;
-	char *ts_out = NULL;
 	FILE *ts_output_file = NULL;
-	GF_Socket *audio_input_udp_sk = NULL;
-	char *video_buffer;
-	u32 video_buffer_size;
-	u16 output_port = 0, audio_input_port = 0;
-	u32 output_type, pcr_offset;
-	char *bifs_src_name;
+	u16 output_port = 1234;
 	M2TSSource sources[MAX_MUX_SRC_PROG];
-	u32 segment_duration, segment_index, segment_number;
-	char segment_manifest_default[GF_MAX_PATH];
-	char *segment_manifest, *segment_http_prefix, *segment_dir;
-	char segment_prefix[GF_MAX_PATH];
-	char segment_name[GF_MAX_PATH];
+	char segment_manifest_default[GF_MAX_PATH], segment_prefix[GF_MAX_PATH], segment_name[GF_MAX_PATH];
 	GF_M2TS_Time prev_seg_time;
 	GF_M2TS_Mux *muxer;
 
@@ -992,42 +982,17 @@ int main(int argc, char **argv)
 	/***********************/
 	/*   initialisations   */
 	/***********************/
-	real_time = 0;
-	is_stdout = 0;
-	ts_output_file = NULL;
-	video_buffer = NULL;
-	last_video_time = 0;
-	sdt_refresh_rate = 0;
-	ts_out = NULL;
-	bifs_src_name = NULL;
-	nb_sources = 0;
-	mux_rate = 0;
-	run_time = 0;
-	output_port = 1234;
-	segment_duration = 0;
-	segment_number = 10; /* by default, we keep the 10 previous segments */
-	segment_index = 0;
-	segment_manifest = NULL;
-	segment_http_prefix = NULL;
-	segment_dir = NULL;
 	prev_seg_time.sec = 0;
 	prev_seg_time.nanosec = 0;
-	video_buffer_size = 0;
-	nb_pck_pack = 1;
-	pcr_ms = 100;
 	muxer = NULL;
 	single_au_pes = 0;
-	split_rap = 0;
-	ttl = 1;
 	psi_refresh_rate = GF_M2TS_PSI_DEFAULT_REFRESH_RATE;
-	pcr_offset = (u32) -1;
-
+	
 	/***********************/
 	/*   parse arguments   */
 	/***********************/
 	if (GF_OK != parse_args(argc, argv, &mux_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, sources, &nb_sources, &bifs_src_name,
-	                        &real_time, &run_time, &video_buffer, &video_buffer_size, &audio_input_port,
-	                        &output_type, &ts_out, &output_port,
+	                        &real_time, &run_time, &video_buffer, &video_buffer_size, &output_type, &ts_out, &output_port,
 	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms, &ttl, &sdt_refresh_rate)) {
 		goto exit;
 	}
@@ -1036,10 +1001,6 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Cannot specify TS run time for VBR multiplex - disabling run time\n");
 		run_time = 0;
 	}
-
-	
-
-
 	/***************************/
 	/*   create mp42ts muxer   */
 	/***************************/
@@ -1050,10 +1011,7 @@ int main(int argc, char **argv)
 
 	if (ts_out != NULL) {
 		if (segment_duration) {
-			char *dot;
 			strcpy(segment_prefix, ts_out);
-			dot = strrchr(segment_prefix, '.');
-			dot[0] = 0;
 			if (segment_dir) {
 				if (strchr("\\/", segment_name[strlen(segment_name)-1])) {
 					sprintf(segment_name, "%s%s_%d.ts", segment_dir, segment_prefix, segment_index);
@@ -1283,7 +1241,6 @@ exit:
 	}
 	if (ts_output_file && !is_stdout) gf_fclose(ts_output_file);
 	if (ts_out) gf_free(ts_out);
-	if (audio_input_udp_sk) gf_sk_del(audio_input_udp_sk);
 	if (video_buffer) gf_free(video_buffer);
 
 	if (muxer) gf_m2ts_mux_del(muxer);
