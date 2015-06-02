@@ -843,7 +843,6 @@ int main(int argc, char **argv)
 	u32 segment_number    = 10; 
 	u32 pcr_ms            = 100;
 	u32 split_rap         = 0;
-	u32 sdt_refresh_rate  = 0;
 	u32 mux_rate          = 0;
 	u32 nb_sources        = 0;
 	u32 segment_duration  = 0;
@@ -987,9 +986,6 @@ int main(int argc, char **argv)
 		if (sources[i].program_name[0] || sources[i].provider_name[0] ) gf_m2ts_mux_program_set_name(program, sources[i].program_name, sources[i].provider_name);
 	}
 	muxer->flush_pes_at_rap = (split_rap == 2) ? GF_TRUE : GF_FALSE;
-
-	if (sdt_refresh_rate)
-		gf_m2ts_mux_enable_sdt(muxer, sdt_refresh_rate);
 	
 	gf_m2ts_mux_update_config(muxer, 1);
 
