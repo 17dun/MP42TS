@@ -701,6 +701,10 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			seg_number_found = 1;
 			*segment_number = atoi(next_arg);
 		} else if (CHECK_PARAM("-src")) {} //second pass arguments
+		else if (CHECK_PARAM("-dst-file")) {
+			dst_found = 1;
+			*ts_out = gf_strdup(next_arg);
+		}
 		else if (CHECK_PARAM("-prog")){} //second pass arguments
 		else {
 			error_msg = "unknown option";
