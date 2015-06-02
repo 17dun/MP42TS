@@ -28,7 +28,6 @@
 #include <gpac/base_coding.h>
 #include <gpac/mpegts.h>
 
-
 #ifndef GPAC_DISABLE_STREAMING
 #include <gpac/internal/ietf_dev.h>
 #endif
@@ -36,7 +35,6 @@
 #ifndef GPAC_DISABLE_TTXT
 #include <gpac/webvtt.h>
 #endif
-
 
 #ifdef GPAC_DISABLE_MPEG2TS_MUX
 #error "Cannot compile MP42TS if GPAC is not built with MPEG2-TS Muxing support"
@@ -60,12 +58,12 @@ static GFINLINE void usage()
 	        "By default each source is a program in a TS. \n"
 	        "Source options are colon-separated list of options, as follows:\n"
 	        "ID=N                   specifies the program ID for this source.\n"
-	        "             All sources with the same ID will be added to the same program\n"
+	        "                       All sources with the same ID will be added to the same program\n"
 	        "name=STR               program name, as used in DVB service description table\n"
 	        "provider=STR           provider name, as used in DVB service description table\n"
 
 	        "\n"
-	        "-prog filename        same as -src filename\n"
+	        "-prog filename         same as -src filename\n"
 	        "\n"
 	        "Destinations:\n"
 	        "Several destinations may be specified as follows, at least one is mandatory\n"
@@ -442,7 +440,7 @@ static void fill_isom_es_ifce(M2TSSource *source, GF_ESInterface *ifce, GF_ISOFi
 static volatile Bool run = 1;
 
 
-static Bool open_source(M2TSSource *source, char *src, u32 mpeg4_signaling, char *update, char *video_buffer, Bool force_real_time, Bool compute_max_size)
+static Bool open_source(M2TSSource *source, char *src, u32 mpeg4_signaling, char *update, Bool force_real_time, Bool compute_max_size)
 {
 	s64 min_offset = 0;
 
@@ -605,11 +603,11 @@ static Bool enable_mem_tracker = GF_FALSE;
 
 /*parse MP42TS arguments*/
 static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr_init_val, u32 *pcr_offset, u32 *psi_refresh_rate, Bool *single_au_pes, M2TSSource *sources, u32 *nb_sources, char **bifs_src_name,
-                                  Bool *real_time, u32 *run_time, char **video_buffer, u32 *video_buffer_size,                                 
+                                  Bool *real_time, u32 *run_time,                                 
                                   u32 *output_type, char **ts_out, u16 *output_port,
                                   char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, u32 *sdt_refresh_rate)
 {
-	Bool rate_found=0, time_found=0, src_found=0, dst_found=0, video_input_found=0,
+	Bool rate_found=0, time_found=0, src_found=0, dst_found=0,
 	     seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0;
 	char *arg = NULL, *next_arg = NULL, *error_msg = "no argument found";
 	u32 mpeg4_signaling = GF_M2TS_MPEG4_SIGNALING_NONE;
@@ -622,37 +620,10 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 		if (!stricmp(arg, "-h") || strstr(arg, "-help")) {
 			usage();
 			return GF_EOS;
-		}
-		else if (CHECK_PARAM("-pcr-init")) {
+		} else if (CHECK_PARAM("-pcr-init")) {
 			sscanf(next_arg, LLD, pcr_init_val);
-		}
-		else if (CHECK_PARAM("-pcr-offset")) {
+		} else if (CHECK_PARAM("-pcr-offset")) {
 			*pcr_offset = atoi(next_arg);
-		}
-		else if (CHECK_PARAM("-video")) {
-			FILE *f;
-			if (video_input_found) {
-				error_msg = "multiple '-video' found";
-				arg = NULL;
-				goto error;
-			}
-			video_input_found = 1;
-			f = gf_fopen(next_arg, "rb");
-			if (f == NULL) {
-				error_msg = "video file not found: ";
-				goto error;
-			}
-			gf_fseek(f, 0, SEEK_END);
-			*video_buffer_size = (u32)gf_ftell(f);
-			gf_fseek(f, 0, SEEK_SET);
-			assert(*video_buffer_size);
-			*video_buffer = (char*) gf_malloc(*video_buffer_size);
-			{
-				s32 read = (u32) fread(*video_buffer, sizeof(char), *video_buffer_size, f);
-				if (read != *video_buffer_size)
-					fprintf(stderr, "Error while reading video file, has read %u chars instead of %u.\n", read, *video_buffer_size);
-			}
-			gf_fclose(f);
 		} else if (CHECK_PARAM("-psi-rate")) {
 			*psi_refresh_rate = atoi(next_arg);
 		} else if (!stricmp(arg, "-mpeg4") || !stricmp(arg, "-4on2")) {
@@ -783,7 +754,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			src_args = src_args + 1;
 		}
 
-		res = open_source(&sources[*nb_sources], next_arg, mpeg4_signaling, *bifs_src_name, *video_buffer, force_real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
+		res = open_source(&sources[*nb_sources], next_arg, mpeg4_signaling, *bifs_src_name, force_real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
 
 
 		//we may have arguments
@@ -893,7 +864,6 @@ int main(int argc, char **argv)
 	const char *ts_pck;
 	char *ts_pack_buffer      = NULL;
 	char *ts_out              = NULL;
-	char *video_buffer        = NULL;
 	char *bifs_src_name       = NULL;
 	char *segment_manifest    = NULL;
 	char *segment_dir         = NULL;
@@ -910,7 +880,6 @@ int main(int argc, char **argv)
 	u32 nb_sources        = 0;
 	u32 segment_duration  = 0;
 	u32 segment_index     = 0;
-	u32 video_buffer_size = 0;
 	u32 last_video_time   = 0;
 	u32 i, j, cur_pid, last_print_time, psi_refresh_rate, nb_pck_in_pack, usec_till_next, output_type;
 	Bool real_time     = GF_FALSE;
@@ -943,7 +912,7 @@ int main(int argc, char **argv)
 	/*   parse arguments   */
 	/***********************/
 	if (GF_OK != parse_args(argc, argv, &mux_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, sources, &nb_sources, &bifs_src_name,
-	                        &real_time, &run_time, &video_buffer, &video_buffer_size, &output_type, &ts_out, &output_port,
+	                        &real_time, &run_time, &output_type, &ts_out, &output_port,
 	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms, &ttl, &sdt_refresh_rate)) {
 		goto exit;
 	}
@@ -1181,7 +1150,6 @@ exit:
 	}
 	if (ts_output_file && !is_stdout) gf_fclose(ts_output_file);
 	if (ts_out) gf_free(ts_out);
-	if (video_buffer) gf_free(video_buffer);
 
 	if (muxer) gf_m2ts_mux_del(muxer);
 	for (i=0; i<nb_sources; i++) {
