@@ -530,8 +530,7 @@ static Bool enable_mem_tracker = GF_FALSE;
 
 /*parse MP42TS arguments*/
 static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr_init_val, u32 *pcr_offset, u32 *psi_refresh_rate, Bool *single_au_pes, M2TSSource *sources, u32 *nb_sources,
-                                  Bool *real_time,                                 
-                                  u32 *output_type, char **ts_out, u16 *output_port,
+                                  Bool *real_time, char **ts_out, u16 *output_port,
                                   char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *pcr_ms)
 {
 	Bool rate_found=0, dst_found=0, seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0;
@@ -768,7 +767,7 @@ int main(int argc, char **argv)
 	u32 nb_sources        = 0;
 	u32 segment_duration  = 0;
 	u32 segment_index     = 0;
-	u32 i, j, cur_pid, last_print_time, psi_refresh_rate, usec_till_next, output_type;
+	u32 i, j, cur_pid, last_print_time, psi_refresh_rate, usec_till_next;
 	Bool real_time     = GF_FALSE;
 	Bool single_au_pes = GF_FALSE;
 	Bool is_stdout     = GF_FALSE;
@@ -799,7 +798,7 @@ int main(int argc, char **argv)
 	/*   parse arguments   */
 	/***********************/
 	if (GF_OK != parse_args(argc, argv, &mux_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, sources, &nb_sources,
-	                        &real_time, &output_type, &ts_out, &output_port,
+	                        &real_time, &ts_out, &output_port,
 	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &pcr_ms)) {
 		goto exit;
 	}
