@@ -27,7 +27,7 @@
 #include <gpac/constants.h>
 #include <gpac/base_coding.h>
 #include <gpac/mpegts.h>
-#include <stdbool.h>
+
 
 #ifndef GPAC_DISABLE_STREAMING
 #include <gpac/internal/ietf_dev.h>
@@ -962,9 +962,9 @@ int main(int argc, char **argv)
 	u32 video_buffer_size = 0;
 	u32 last_video_time   = 0;
 	u32 i, j, cur_pid, last_print_time, psi_refresh_rate, nb_pck_in_pack, usec_till_next, output_type;
-	Bool real_time     = false;
-	Bool single_au_pes = false;
-	Bool is_stdout     = false;
+	Bool real_time     = GF_FALSE;
+	Bool single_au_pes = GF_FALSE;
+	Bool is_stdout     = GF_FALSE;
 	s64 pcr_init_val = -1;
 	FILE *ts_output_file = NULL;
 	u16 output_port = 1234;
