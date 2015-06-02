@@ -88,7 +88,6 @@ static GFINLINE void usage()
 	        "-rap                   forces RAP/IDR to be aligned with PES start for video streams (disabled by default)\n"
 	        "                          in this mode, PAT, PMT and PCR will be inserted before the first TS packet of the RAP PES\n"
 	        "-flush-rap             same as -rap but flushes all other streams (sends remaining PES packets) before inserting PAT/PMT\n"
-	        "-nb-pack N             specifies to pack up to N TS packets together before sending on network or writing to file\n"
 	        "-pcr-ms N              sets max interval in ms between 2 PCR. Default is 100 ms\n"
 	        "-ifce IPIFCE           specifies default IP interface to use. Default is IF_ANY.\n"
 	        "\n"
@@ -599,7 +598,7 @@ static Bool enable_mem_tracker = GF_FALSE;
 static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr_init_val, u32 *pcr_offset, u32 *psi_refresh_rate, Bool *single_au_pes, M2TSSource *sources, u32 *nb_sources,
                                   Bool *real_time,                                 
                                   u32 *output_type, char **ts_out, u16 *output_port,
-                                  char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms)
+                                  char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *pcr_ms)
 {
 	Bool rate_found=0, dst_found=0,
 	     seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0;
@@ -653,10 +652,6 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			*split_rap = 1;
 		} else if (!stricmp(arg, "-flush-rap")) {
 			*split_rap = 2;
-		} else if (CHECK_PARAM("-nb-pack")) {
-			*nb_pck_pack = atoi(next_arg);
-		} else if (CHECK_PARAM("-nb-pck")) {
-			*nb_pck_pack = atoi(next_arg);
 		} else if (CHECK_PARAM("-pcr-ms")) {
 			*pcr_ms = atoi(next_arg);
 		} else if (CHECK_PARAM("-logs")) {
@@ -838,7 +833,6 @@ int main(int argc, char **argv)
 	char *segment_manifest    = NULL;
 	char *segment_dir         = NULL;
 	char *segment_http_prefix = NULL;
-	u32 nb_pck_pack = 1;
 	u32 pcr_offset  = (u32) -1;
 	u32 segment_number    = 10; 
 	u32 pcr_ms            = 100;
@@ -880,7 +874,7 @@ int main(int argc, char **argv)
 	/***********************/
 	if (GF_OK != parse_args(argc, argv, &mux_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, sources, &nb_sources,
 	                        &real_time, &output_type, &ts_out, &output_port,
-	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms)) {
+	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &pcr_ms)) {
 		goto exit;
 	}
 
@@ -989,10 +983,6 @@ int main(int argc, char **argv)
 	
 	gf_m2ts_mux_update_config(muxer, 1);
 
-	if (nb_pck_pack>1) {
-		ts_pack_buffer = gf_malloc(sizeof(char) * 188 * nb_pck_pack);
-	}
-
 	/*****************/
 	/*   main loop   */
 	/*****************/
@@ -1007,10 +997,6 @@ int main(int argc, char **argv)
 			if (ts_pack_buffer ) {
 				memcpy(ts_pack_buffer + 188 * nb_pck_in_pack, ts_pck, 188);
 				nb_pck_in_pack++;
-
-				if (nb_pck_in_pack < nb_pck_pack)
-					continue;
-
 				ts_pck = (const char *) ts_pack_buffer;
 			} else {
 				nb_pck_in_pack = 1;
