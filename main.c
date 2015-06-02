@@ -610,8 +610,52 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			}
 			seg_number_found = 1;
 			*segment_number = atoi(next_arg);
-		} else if (CHECK_PARAM("-src")) {} //second pass arguments
-		else if (CHECK_PARAM("-dst-file")) {
+		} else if (CHECK_PARAM("-src")) {
+			Bool res;
+			char *src_args = strchr(next_arg, ':');
+			if (src_args && (src_args[1]=='\\')) {
+				src_args = strchr(src_args+2, ':');
+			}
+			if (src_args) {
+				src_args[0] = 0;
+				src_args = src_args + 1;
+			}
+
+			res = open_source(&sources[*nb_sources], next_arg, *real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
+
+			//we may have arguments
+			while (src_args) {
+				char *sep = strchr(src_args, ':');
+				if (sep) sep[0] = 0;
+
+				if (!strnicmp(src_args, "name=", 5)) {
+					strncpy(sources[*nb_sources].program_name, src_args+5, 20);
+				} else if (!strnicmp(src_args, "provider=", 9)) {
+					strncpy(sources[*nb_sources].provider_name, src_args+9, 20);
+				} else if (!strnicmp(src_args, "ID=", 3)) {
+					u32 k;
+					sources[*nb_sources].ID = atoi(src_args+3);
+
+					for (k=0; k<*nb_sources; k++) {
+						if (sources[k].ID == sources[*nb_sources].ID) {
+							sources[*nb_sources].is_not_program_declaration = 1;
+							break;
+						}
+					}
+				}
+
+				if (sep) {
+					sep[0] = ':';
+					src_args = sep+1;
+				} else
+					break;
+			}
+
+			if (res) {
+				(*nb_sources)++;
+				if (res==2) *real_time=1;
+			}
+		} else if (CHECK_PARAM("-dst-file")) {
 			dst_found = 1;
 			*ts_out = gf_strdup(next_arg);
 		} else {
@@ -619,63 +663,9 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			goto error;
 		}
 	}
-	rate_found = 1;
 
-	/*second pass: other*/
-	for (i=1; i<argc; i++) {
-		u32 res;
-		char *src_args;
-		arg = argv[i];
-		if (arg[0] !='-') continue;
-
-		if (!CHECK_PARAM("-src")) continue;
-
-		src_args = strchr(next_arg, ':');
-		if (src_args && (src_args[1]=='\\')) {
-			src_args = strchr(src_args+2, ':');
-		}
-		if (src_args) {
-			src_args[0] = 0;
-			src_args = src_args + 1;
-		}
-
-		res = open_source(&sources[*nb_sources], next_arg, *real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
-
-		//we may have arguments
-		while (src_args) {
-			char *sep = strchr(src_args, ':');
-			if (sep) sep[0] = 0;
-
-			if (!strnicmp(src_args, "name=", 5)) {
-				strncpy(sources[*nb_sources].program_name, src_args+5, 20);
-			} else if (!strnicmp(src_args, "provider=", 9)) {
-				strncpy(sources[*nb_sources].provider_name, src_args+9, 20);
-			} else if (!strnicmp(src_args, "ID=", 3)) {
-				u32 k;
-				sources[*nb_sources].ID = atoi(src_args+3);
-
-				for (k=0; k<*nb_sources; k++) {
-					if (sources[k].ID == sources[*nb_sources].ID) {
-						sources[*nb_sources].is_not_program_declaration = 1;
-						break;
-					}
-				}
-			}
-
-			if (sep) {
-				sep[0] = ':';
-				src_args = sep+1;
-			} else
-				break;
-		}
-
-		if (res) {
-			(*nb_sources)++;
-			if (res==2) *real_time=1;
-		}
-	}
 	/*syntax is correct; now testing the presence of mandatory arguments*/
-	if (dst_found && *nb_sources && rate_found) {
+	if (dst_found && *nb_sources) {
 		return GF_OK;
 	} else {
 		if (!dst_found)
