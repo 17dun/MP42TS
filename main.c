@@ -79,13 +79,11 @@ static GFINLINE void usage()
 	        "-rate R                specifies target rate in kbps of the multiplex (optional)\n"
 	        "-real-time             specifies the muxer will work in real-time mode\n"
 	        "                        * if not specified, the muxer will generate the TS as quickly as possible\n"
-	        "                        * automatically set for SDP or BT input\n"
 	        "-pcr-init V            sets initial value V for PCR - if not set, random value is used\n"
 	        "-pcr-offset V          offsets all timestamps from PCR by V, in 90kHz. Default value is computed based on input media.\n"
 	        "-psi-rate V            sets PSI refresh rate V in ms (default 100ms).\n"
 	        "                        * If 0, PSI data is only send once at the beginning or before each IDR when -rap option is set.\n"
 	        "                        * This should be set to 0 for DASH streams.\n"
-	        "-time n                request the muxer to stop after n ms\n"
 	        "-single-au             forces 1 PES = 1 AU (disabled by default)\n"
 	        "-rap                   forces RAP/IDR to be aligned with PES start for video streams (disabled by default)\n"
 	        "                          in this mode, PAT, PMT and PCR will be inserted before the first TS packet of the RAP PES\n"
@@ -601,11 +599,11 @@ static Bool enable_mem_tracker = GF_FALSE;
 
 /*parse MP42TS arguments*/
 static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr_init_val, u32 *pcr_offset, u32 *psi_refresh_rate, Bool *single_au_pes, M2TSSource *sources, u32 *nb_sources,
-                                  Bool *real_time, u32 *run_time,                                 
+                                  Bool *real_time,                                 
                                   u32 *output_type, char **ts_out, u16 *output_port,
                                   char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, u32 *sdt_refresh_rate)
 {
-	Bool rate_found=0, time_found=0, dst_found=0,
+	Bool rate_found=0, dst_found=0,
 	     seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0;
 	char *arg = NULL, *next_arg = NULL, *error_msg = "no argument found";
 	u32 mpeg4_signaling = GF_M2TS_MPEG4_SIGNALING_NONE;
@@ -651,14 +649,6 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			}
 			real_time_found = 1;
 			*real_time = 1;
-		} else if (CHECK_PARAM("-time")) {
-			if (time_found) {
-				error_msg = "multiple '-time' found";
-				arg = NULL;
-				goto error;
-			}
-			time_found = 1;
-			*run_time = atoi(next_arg);
 		} else if (!stricmp(arg, "-single-au")) {
 			*single_au_pes = 1;
 		} else if (!stricmp(arg, "-rap")) {
@@ -855,8 +845,7 @@ int main(int argc, char **argv)
 	u32 nb_pck_pack = 1;
 	u32 pcr_offset  = (u32) -1;
 	u32 segment_number    = 10; 
-	u32 pcr_ms            = 100; 
-	u32 run_time          = 0;
+	u32 pcr_ms            = 100;
 	u32 split_rap         = 0;
 	u32 sdt_refresh_rate  = 0;
 	u32 mux_rate          = 0;
@@ -895,15 +884,11 @@ int main(int argc, char **argv)
 	/*   parse arguments   */
 	/***********************/
 	if (GF_OK != parse_args(argc, argv, &mux_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, sources, &nb_sources,
-	                        &real_time, &run_time, &output_type, &ts_out, &output_port,
+	                        &real_time, &output_type, &ts_out, &output_port,
 	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms, &ttl, &sdt_refresh_rate)) {
 		goto exit;
 	}
 
-	if (run_time && !mux_rate) {
-		fprintf(stderr, "Cannot specify TS run time for VBR multiplex - disabling run time\n");
-		run_time = 0;
-	}
 	/***************************/
 	/*   create mp42ts muxer   */
 	/***************************/
@@ -1106,13 +1091,6 @@ call_flush:
 			}
 			if (status == GF_M2TS_STATE_IDLE) gf_sleep(1);
 		}
-
-
-		if (run_time)
-			if (gf_m2ts_get_ts_clock(muxer) > run_time) {
-				fprintf(stderr, "Stopping multiplex at %d ms (requested runtime %d ms)\n", gf_m2ts_get_ts_clock(muxer), run_time);
-				break;
-			}
 		
 		if (status==GF_M2TS_STATE_EOS) break;
 	}
