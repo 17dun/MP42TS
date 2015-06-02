@@ -45,15 +45,6 @@
 #define MP42TS_PRINT_TIME_MS 500 /*refresh printed info every CLOCK_REFRESH ms*/
 #define MP42TS_VIDEO_FREQ 1000 /*meant to send AVC IDR only every CLOCK_REFRESH ms*/
 
-FILE *logfile = NULL;
-
-static void on_gpac_log(void *cbk, u32 ll, u32 lm, const char *fmt, va_list list)
-{
-	FILE *logs = cbk;
-	vfprintf(logs, fmt, list);
-	fflush(logs);
-}
-
 static GFINLINE void usage()
 {
 	fprintf(stderr, "GPAC version " GPAC_FULL_VERSION "\n"
@@ -448,43 +439,6 @@ static void fill_isom_es_ifce(M2TSSource *source, GF_ESInterface *ifce, GF_ISOFi
 
 #endif //GPAC_DISABLE_ISOM
 
-static void SampleCallBack(void *calling_object, u16 ESID, char *data, u32 size, u64 ts)
-{
-	u32 i;
-	//fprintf(stderr, "update: ESID=%d - size=%d - ts="LLD"\n", ESID, size, ts);
-
-	if (calling_object) 
-	{
-		M2TSSource *source = (M2TSSource *)calling_object;
-		i=0;
-		while (i<source->nb_streams) {
-			if (source->streams[i].output_ctrl==NULL) {
-				fprintf(stderr, "MULTIPLEX NOT YET CREATED\n");
-				return;
-			}
-			if (source->streams[i].stream_id == ESID) {
-				GF_ESIStream *priv = (GF_ESIStream *)source->streams[i].input_udta;
-				GF_ESIPacket pck;
-				memset(&pck, 0, sizeof(GF_ESIPacket));
-				pck.data = data;
-				pck.data_len = size;
-				pck.flags |= GF_ESI_DATA_HAS_CTS;
-				pck.flags |= GF_ESI_DATA_HAS_DTS;
-				pck.flags |= GF_ESI_DATA_AU_START;
-				pck.flags |= GF_ESI_DATA_AU_END;
-				if (ts) pck.cts = pck.dts = ts;
-
-				if (priv->rap)
-					pck.flags |= GF_ESI_DATA_AU_RAP;
-				source->streams[i].output_ctrl(&source->streams[i], GF_ESI_OUTPUT_DATA_DISPATCH, &pck);
-				return;
-			}
-			i++;
-		}
-	}
-	return;
-}
-
 static volatile Bool run = 1;
 
 
@@ -756,9 +710,6 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 		else if (CHECK_PARAM("-logs")) {
 			if (gf_log_set_tools_levels(next_arg) != GF_OK)
 				return GF_BAD_PARAM;
-		} else if (CHECK_PARAM("-lf")) {
-			logfile = gf_fopen(next_arg, "wt");
-			gf_log_set_callback(logfile, on_gpac_log);
 		} else if (CHECK_PARAM("-segment-dir")) {
 			if (seg_dir_found) {
 				goto error;
@@ -1189,17 +1140,6 @@ call_flush:
 			goto call_flush;
 		}
 
-		/*push video*/
-		{
-			u32 now=gf_sys_clock();
-			if (now/MP42TS_VIDEO_FREQ != last_video_time/MP42TS_VIDEO_FREQ) {
-				/*should use carrousel behaviour instead of being pushed manually*/
-				if (video_buffer)
-					SampleCallBack((void*)&sources[nb_sources-1], VIDEO_DATA_ESID, video_buffer, video_buffer_size, gf_m2ts_get_sys_clock(muxer)+1000/*try buffering due to VLC msg*/);
-				last_video_time = now;
-			}
-		}
-
 		if (real_time) {
 			/*refresh every MP42TS_PRINT_TIME_MS ms*/
 			u32 now=gf_sys_clock();
@@ -1265,7 +1205,6 @@ exit:
  		if (sources[i].th) gf_th_del(sources[i].th);
 	}
 
-	if (logfile) gf_fclose(logfile);
 	gf_sys_close();
 
 #ifdef GPAC_MEMORY_TRACKING
