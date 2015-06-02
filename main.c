@@ -41,29 +41,25 @@
 #endif
 
 #define MP42TS_PRINT_TIME_MS 500 /*refresh printed info every CLOCK_REFRESH ms*/
-#define MP42TS_VIDEO_FREQ 1000 /*meant to send AVC IDR only every CLOCK_REFRESH ms*/
 
 static GFINLINE void usage()
 {
 	fprintf(stderr, "GPAC version " GPAC_FULL_VERSION "\n"
-	        "GPAC Copyright (c) Telecom ParisTech 2000-2014\n"
+	        "GPAC Copyright (c) Telecom ParisTech 2000-2015\n"
 	        "GPAC Configuration: " GPAC_CONFIGURATION "\n"
 	        "Features: %s\n\n", gpac_features());
 	fprintf(stderr, "mp42ts <inputs> <destinations> [options]\n"
 	        "\n"
 	        "Inputs:\n"
 	        "-src filename[:OPTS]   specifies an input file used for a TS service\n"
-	        "                        * currently only supports ISO files and SDP files\n"
-	        "                        * can be used several times, once for each program\n"
+	        "                        * currently only supports ISO files\n"
+	        "                        * can be used several times, once for each source\n"
 	        "By default each source is a program in a TS. \n"
 	        "Source options are colon-separated list of options, as follows:\n"
 	        "ID=N                   specifies the program ID for this source.\n"
 	        "                       All sources with the same ID will be added to the same program\n"
 	        "name=STR               program name, as used in DVB service description table\n"
 	        "provider=STR           provider name, as used in DVB service description table\n"
-
-	        "\n"
-	        "-prog filename         same as -src filename\n"
 	        "\n"
 	        "Destinations:\n"
 	        "Several destinations may be specified as follows, at least one is mandatory\n"
@@ -533,7 +529,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
                                   Bool *real_time, char **ts_out, u16 *output_port,
                                   char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *pcr_ms)
 {
-	Bool rate_found = GF_FALSE, dst_found = GF_FALSE, seg_dur_found = GF_FALSE, seg_dir_found = GF_FALSE, seg_manifest_found = GF_FALSE, seg_number_found = GF_FALSE, seg_http_found = GF_FALSE, real_time_found = GF_FALSE, force_real_time = GF_FALSE;
+	Bool rate_found = GF_FALSE, dst_found = GF_FALSE, seg_dur_found = GF_FALSE, seg_dir_found = GF_FALSE, seg_manifest_found = GF_FALSE, seg_number_found = GF_FALSE, seg_http_found = GF_FALSE, real_time_found = GF_FALSE;
 	char *arg = NULL, *next_arg = NULL, *error_msg = "no argument found";
 	s32 i;
 
@@ -618,14 +614,11 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 		else if (CHECK_PARAM("-dst-file")) {
 			dst_found = 1;
 			*ts_out = gf_strdup(next_arg);
-		}
-		else if (CHECK_PARAM("-prog")){} //second pass arguments
-		else {
+		} else {
 			error_msg = "unknown option";
 			goto error;
 		}
 	}
-	if (*real_time) force_real_time = 1;
 	rate_found = 1;
 
 	/*second pass: other*/
@@ -635,7 +628,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 		arg = argv[i];
 		if (arg[0] !='-') continue;
 
-		if (! CHECK_PARAM("-src") && ! CHECK_PARAM("-prog") ) continue;
+		if (!CHECK_PARAM("-src")) continue;
 
 		src_args = strchr(next_arg, ':');
 		if (src_args && (src_args[1]=='\\')) {
@@ -646,8 +639,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			src_args = src_args + 1;
 		}
 
-		res = open_source(&sources[*nb_sources], next_arg, force_real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
-
+		res = open_source(&sources[*nb_sources], next_arg, *real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
 
 		//we may have arguments
 		while (src_args) {
