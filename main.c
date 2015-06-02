@@ -533,9 +533,8 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
                                   Bool *real_time, char **ts_out, u16 *output_port,
                                   char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *pcr_ms)
 {
-	Bool rate_found=0, dst_found=0, seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0;
+	Bool rate_found = GF_FALSE, dst_found = GF_FALSE, seg_dur_found = GF_FALSE, seg_dir_found = GF_FALSE, seg_manifest_found = GF_FALSE, seg_number_found = GF_FALSE, seg_http_found = GF_FALSE, real_time_found = GF_FALSE, force_real_time = GF_FALSE;
 	char *arg = NULL, *next_arg = NULL, *error_msg = "no argument found";
-	Bool force_real_time = 0;
 	s32 i;
 
 	/*first pass: find audio - NO GPAC INIT MODIFICATION MUST OCCUR IN THIS PASS*/
@@ -767,7 +766,8 @@ int main(int argc, char **argv)
 	u32 nb_sources        = 0;
 	u32 segment_duration  = 0;
 	u32 segment_index     = 0;
-	u32 i, j, cur_pid, last_print_time, psi_refresh_rate, usec_till_next;
+	u32 i, j, cur_pid, last_print_time, usec_till_next;
+	u32 psi_refresh_rate = GF_M2TS_PSI_DEFAULT_REFRESH_RATE;
 	Bool real_time     = GF_FALSE;
 	Bool single_au_pes = GF_FALSE;
 	Bool is_stdout     = GF_FALSE;
@@ -777,7 +777,7 @@ int main(int argc, char **argv)
 	M2TSSource sources[MAX_MUX_SRC_PROG];
 	char segment_manifest_default[GF_MAX_PATH], segment_prefix[GF_MAX_PATH], segment_name[GF_MAX_PATH];
 	GF_M2TS_Time prev_seg_time;
-	GF_M2TS_Mux *muxer;
+	GF_M2TS_Mux *muxer = NULL;
 
 	/*****************/
 	/*   gpac init   */
@@ -790,9 +790,6 @@ int main(int argc, char **argv)
 	/***********************/
 	prev_seg_time.sec = 0;
 	prev_seg_time.nanosec = 0;
-	muxer = NULL;
-	single_au_pes = 0;
-	psi_refresh_rate = GF_M2TS_PSI_DEFAULT_REFRESH_RATE;
 	
 	/***********************/
 	/*   parse arguments   */
