@@ -90,9 +90,7 @@ static GFINLINE void usage()
 	        "-flush-rap             same as -rap but flushes all other streams (sends remaining PES packets) before inserting PAT/PMT\n"
 	        "-nb-pack N             specifies to pack up to N TS packets together before sending on network or writing to file\n"
 	        "-pcr-ms N              sets max interval in ms between 2 PCR. Default is 100 ms\n"
-	        "-ttl N                 specifies Time-To-Live for multicast. Default is 1.\n"
 	        "-ifce IPIFCE           specifies default IP interface to use. Default is IF_ANY.\n"
-	        "-sdt-rate MS           Gives the SDT carrousel rate in milliseconds. If 0 (default), SDT is not sent\n"
 	        "\n"
 	        "MPEG-4/T-DMB options:\n"
 	        "-mpeg4 or -4on2        forces usage of MPEG-4 signaling (IOD and SL Config)\n"
@@ -601,7 +599,7 @@ static Bool enable_mem_tracker = GF_FALSE;
 static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr_init_val, u32 *pcr_offset, u32 *psi_refresh_rate, Bool *single_au_pes, M2TSSource *sources, u32 *nb_sources,
                                   Bool *real_time,                                 
                                   u32 *output_type, char **ts_out, u16 *output_port,
-                                  char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, u32 *sdt_refresh_rate)
+                                  char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms)
 {
 	Bool rate_found=0, dst_found=0,
 	     seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0;
@@ -661,12 +659,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			*nb_pck_pack = atoi(next_arg);
 		} else if (CHECK_PARAM("-pcr-ms")) {
 			*pcr_ms = atoi(next_arg);
-		} else if (CHECK_PARAM("-ttl")) {
-			*ttl = atoi(next_arg);
-		} else if (CHECK_PARAM("-sdt-rate")) {
-			*sdt_refresh_rate = atoi(next_arg);
-		}
-		else if (CHECK_PARAM("-logs")) {
+		} else if (CHECK_PARAM("-logs")) {
 			if (gf_log_set_tools_levels(next_arg) != GF_OK)
 				return GF_BAD_PARAM;
 		} else if (CHECK_PARAM("-segment-dir")) {
@@ -845,7 +838,6 @@ int main(int argc, char **argv)
 	char *segment_manifest    = NULL;
 	char *segment_dir         = NULL;
 	char *segment_http_prefix = NULL;
-	u32 ttl         = 1;
 	u32 nb_pck_pack = 1;
 	u32 pcr_offset  = (u32) -1;
 	u32 segment_number    = 10; 
@@ -889,7 +881,7 @@ int main(int argc, char **argv)
 	/***********************/
 	if (GF_OK != parse_args(argc, argv, &mux_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, sources, &nb_sources,
 	                        &real_time, &output_type, &ts_out, &output_port,
-	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms, &ttl, &sdt_refresh_rate)) {
+	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms)) {
 		goto exit;
 	}
 
