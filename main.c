@@ -97,7 +97,6 @@ static GFINLINE void usage()
 	        "-sdt-rate MS           Gives the SDT carrousel rate in milliseconds. If 0 (default), SDT is not sent\n"
 	        "\n"
 	        "MPEG-4/T-DMB options:\n"
-	        "-bifs-src filename          update file: must be either an .sdp or a .bt file\n"
 	        "-mpeg4 or -4on2        forces usage of MPEG-4 signaling (IOD and SL Config)\n"
 	        "-4over2                same as -4on2 and uses PMT to carry OD Updates\n"
 	        "\n"
@@ -124,7 +123,6 @@ typedef struct
 	GF_ESInterface streams[40];
 	GF_Descriptor *iod;
 	GF_Thread *th;
-	char *bifs_src_name;
 	u32 rate;
 	u32 mpeg4_signaling;
 	Bool audio_configured;
@@ -440,7 +438,7 @@ static void fill_isom_es_ifce(M2TSSource *source, GF_ESInterface *ifce, GF_ISOFi
 static volatile Bool run = 1;
 
 
-static Bool open_source(M2TSSource *source, char *src, u32 mpeg4_signaling, char *update, Bool force_real_time, Bool compute_max_size)
+static Bool open_source(M2TSSource *source, char *src, u32 mpeg4_signaling, Bool force_real_time, Bool compute_max_size)
 {
 	s64 min_offset = 0;
 
@@ -602,12 +600,12 @@ static Bool enable_mem_tracker = GF_FALSE;
             || ((strlen(arg) == strlen(param)) && ++i && (i<argc) && (next_arg = argv[i]))))
 
 /*parse MP42TS arguments*/
-static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr_init_val, u32 *pcr_offset, u32 *psi_refresh_rate, Bool *single_au_pes, M2TSSource *sources, u32 *nb_sources, char **bifs_src_name,
+static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr_init_val, u32 *pcr_offset, u32 *psi_refresh_rate, Bool *single_au_pes, M2TSSource *sources, u32 *nb_sources,
                                   Bool *real_time, u32 *run_time,                                 
                                   u32 *output_type, char **ts_out, u16 *output_port,
                                   char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *nb_pck_pack, u32 *pcr_ms, u32 *ttl, u32 *sdt_refresh_rate)
 {
-	Bool rate_found=0, time_found=0, src_found=0, dst_found=0,
+	Bool rate_found=0, time_found=0, dst_found=0,
 	     seg_dur_found=0, seg_dir_found=0, seg_manifest_found=0, seg_number_found=0, seg_http_found=0, real_time_found=0;
 	char *arg = NULL, *next_arg = NULL, *error_msg = "no argument found";
 	u32 mpeg4_signaling = GF_M2TS_MPEG4_SIGNALING_NONE;
@@ -712,21 +710,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			}
 			seg_number_found = 1;
 			*segment_number = atoi(next_arg);
-		}
-		else if (CHECK_PARAM("-bifs-src")) {
-			if (src_found) {
-				error_msg = "multiple '-bifs-src' found";
-				arg = NULL;
-				goto error;
-			}
-			src_found = 1;
-			*bifs_src_name = next_arg;
-		} else if (CHECK_PARAM("-dst-file")) {
-			dst_found = 1;
-			*ts_out = gf_strdup(next_arg);
-		} 
-		
-		else if (CHECK_PARAM("-src")) {} //second pass arguments
+		} else if (CHECK_PARAM("-src")) {} //second pass arguments
 		else if (CHECK_PARAM("-prog")){} //second pass arguments
 		else {
 			error_msg = "unknown option";
@@ -754,7 +738,7 @@ static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr
 			src_args = src_args + 1;
 		}
 
-		res = open_source(&sources[*nb_sources], next_arg, mpeg4_signaling, *bifs_src_name, force_real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
+		res = open_source(&sources[*nb_sources], next_arg, mpeg4_signaling, force_real_time, (*pcr_offset == (u32) -1) ? 1 : 0);
 
 
 		//we may have arguments
@@ -864,7 +848,6 @@ int main(int argc, char **argv)
 	const char *ts_pck;
 	char *ts_pack_buffer      = NULL;
 	char *ts_out              = NULL;
-	char *bifs_src_name       = NULL;
 	char *segment_manifest    = NULL;
 	char *segment_dir         = NULL;
 	char *segment_http_prefix = NULL;
@@ -911,7 +894,7 @@ int main(int argc, char **argv)
 	/***********************/
 	/*   parse arguments   */
 	/***********************/
-	if (GF_OK != parse_args(argc, argv, &mux_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, sources, &nb_sources, &bifs_src_name,
+	if (GF_OK != parse_args(argc, argv, &mux_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, sources, &nb_sources,
 	                        &real_time, &run_time, &output_type, &ts_out, &output_port,
 	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &nb_pck_pack, &pcr_ms, &ttl, &sdt_refresh_rate)) {
 		goto exit;
