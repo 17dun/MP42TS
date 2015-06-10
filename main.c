@@ -162,6 +162,8 @@ typedef struct
 static GF_Err mp4_input_ctrl(GF_ESInterface *ifce, u32 act_type, void *param)
 {
 	GF_ESIMP4 *priv = (GF_ESIMP4 *)ifce->input_udta;
+	printf("mp4_input_truc \n");
+
 	if (!priv) return GF_BAD_PARAM;
 
 	switch (act_type) {
@@ -317,6 +319,7 @@ static void fill_isom_es_ifce(M2TSSource *source, GF_ESInterface *ifce, GF_ISOFi
 	ifce->stream_id = gf_isom_get_track_id(mp4, track_num);
 
 	esd = gf_media_map_esd(mp4, track_num);
+	printf("fill_isom \n");
 
 	if (esd) {
 		ifce->stream_type = esd->decoderConfig->streamType;
@@ -425,7 +428,6 @@ static volatile Bool run = 1;
 static Bool open_source(M2TSSource *source, char *src, Bool force_real_time, Bool compute_max_size)
 {
 	s64 min_offset = 0;
-
 	memset(source, 0, sizeof(M2TSSource));
 
 	/*open ISO file*/
@@ -526,8 +528,7 @@ static Bool enable_mem_tracker = GF_FALSE;
 
 /*parse MP42TS arguments*/
 static GFINLINE GF_Err parse_args(int argc, char **argv, u32 *mux_rate, s64 *pcr_init_val, u32 *pcr_offset, u32 *psi_refresh_rate, Bool *single_au_pes, M2TSSource *sources, u32 *nb_sources,
-                                  Bool *real_time, char **ts_out, u16 *output_port,
-                                  char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *pcr_ms)
+                                  Bool *real_time, char **ts_out, char** segment_dir, u32 *segment_duration, char **segment_manifest, u32 *segment_number, char **segment_http_prefix, u32 *split_rap, u32 *pcr_ms)
 {
 	Bool rate_found = GF_FALSE, dst_found = GF_FALSE, seg_dur_found = GF_FALSE, seg_dir_found = GF_FALSE, seg_manifest_found = GF_FALSE, seg_number_found = GF_FALSE, seg_http_found = GF_FALSE, real_time_found = GF_FALSE;
 	char *arg = NULL, *next_arg = NULL, *error_msg = "no argument found";
@@ -755,7 +756,6 @@ int main(int argc, char **argv)
 	Bool is_stdout     = GF_FALSE;
 	s64 pcr_init_val = -1;
 	FILE *ts_output_file = NULL;
-	u16 output_port = 1234;
 	M2TSSource sources[MAX_MUX_SRC_PROG];
 	char segment_manifest_default[GF_MAX_PATH], segment_prefix[GF_MAX_PATH], segment_name[GF_MAX_PATH];
 	GF_M2TS_Time prev_seg_time;
@@ -777,8 +777,7 @@ int main(int argc, char **argv)
 	/*   parse arguments   */
 	/***********************/
 	if (GF_OK != parse_args(argc, argv, &mux_rate, &pcr_init_val, &pcr_offset, &psi_refresh_rate, &single_au_pes, sources, &nb_sources,
-	                        &real_time, &ts_out, &output_port,
-	                        &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &pcr_ms)) {
+	                        &real_time, &ts_out, &segment_dir, &segment_duration, &segment_manifest, &segment_number, &segment_http_prefix, &split_rap, &pcr_ms)) {
 		goto exit;
 	}
 
@@ -789,7 +788,7 @@ int main(int argc, char **argv)
 	if (muxer) gf_m2ts_mux_use_single_au_pes_mode(muxer, single_au_pes);
 	if (pcr_init_val>=0) gf_m2ts_mux_set_initial_pcr(muxer, (u64) pcr_init_val);
 	gf_m2ts_mux_set_pcr_max_interval(muxer, pcr_ms);
-
+// This imaginary comment sure will do to feign work. Also, this blue design is kind
 	if (ts_out != NULL) {
 		if (segment_duration) {
 			strcpy(segment_prefix, ts_out);
@@ -826,8 +825,10 @@ int main(int argc, char **argv)
 
 	for (i=0; i<nb_sources; i++) {
 		if (!sources[i].ID) {
-			for (j=i+1; j<nb_sources; j++) {
-				if (sources[i].ID < sources[j].ID) sources[i].ID = sources[i].ID+1;
+			for (j=i+1; j<nb_sources; j++) 
+			{
+				if (sources[i].ID < sources[j].ID) 
+					sources[i].ID = sources[i].ID+1;
 			}
 			if (!sources[i].ID) sources[i].ID = 1;
 		}
@@ -837,10 +838,12 @@ int main(int argc, char **argv)
 	/*   declare all streams to the muxer   */
 	/****************************************/
 	cur_pid = 100;	/*PIDs start from 100*/
-	for (i=0; i<nb_sources; i++) {
+	for (i=0; i<nb_sources; i++) 
+	{
 		GF_M2TS_Mux_Program *program;
 
-		if (! sources[i].is_not_program_declaration) {
+		if (! sources[i].is_not_program_declaration) 
+		{
 			u32 prog_pcr_offset = 0;
 			if (pcr_offset==(u32)-1) {
 				if (sources[i].max_sample_size && mux_rate) {
@@ -857,16 +860,18 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Setting up program ID %d - send rates: PSI %d ms PCR %d ms - PCR offset %d\n", sources[i].ID, psi_refresh_rate, pcr_ms, prog_pcr_offset);
 
 			program = gf_m2ts_mux_program_add(muxer, sources[i].ID, cur_pid, psi_refresh_rate, prog_pcr_offset, GF_FALSE);
-		} else {
+		} else 
 			program = gf_m2ts_mux_program_find(muxer, sources[i].ID);
-		}
-		if (!program) continue;
+
+		if (!program) 
+			continue;
 
 		for (j=0; j<sources[i].nb_streams; j++) {
 			GF_M2TS_Mux_Stream *stream;
 			Bool force_pes_mode = 0;
 			/*likely an OD stream disabled*/
-			if (!sources[i].streams[j].stream_type) continue;
+			if (!sources[i].streams[j].stream_type) 
+				continue;
 
 			stream = gf_m2ts_program_stream_add(program, &sources[i].streams[j], cur_pid+j+1, (sources[i].pcr_idx==j) ? 1 : 0, force_pes_mode);
 			if (split_rap && (sources[i].streams[j].stream_type==GF_STREAM_VISUAL)) stream->start_pes_at_rap = 1;
@@ -910,6 +915,7 @@ int main(int argc, char **argv)
 					if (!ts_output_file) {
 						fprintf(stderr, "Error opening %s\n", segment_name);
 						goto exit;
+						// Looks
 					}
 					/* delete the oldest segment */
 					if (segment_number && ((s32) (segment_index - segment_number - 1) >= 0)) {
@@ -948,7 +954,8 @@ int main(int argc, char **argv)
 					if (c=='q') break;
 				}
 			}
-			if (status == GF_M2TS_STATE_IDLE) gf_sleep(1);
+			if (status == GF_M2TS_STATE_IDLE) 
+				gf_sleep(1);
 		}
 		
 		if (status==GF_M2TS_STATE_EOS) break;
@@ -967,13 +974,17 @@ exit:
 	if (segment_duration) {
 		write_manifest(segment_manifest, segment_dir, segment_duration, segment_prefix, segment_http_prefix, segment_index - segment_number, segment_index, 1);
 	}
-	if (ts_output_file && !is_stdout) gf_fclose(ts_output_file);
-	if (ts_out) gf_free(ts_out);
+	if (ts_output_file && !is_stdout) 
+		gf_fclose(ts_output_file);
+	if (ts_out != NULL) 
+		gf_free(ts_out);
 
-	if (muxer) gf_m2ts_mux_del(muxer);
+	if (muxer) 
+		gf_m2ts_mux_del(muxer);
 	for (i=0; i<nb_sources; i++) {
 		for (j=0; j<sources[i].nb_streams; j++) {
-			if (sources[i].streams[j].input_ctrl) sources[i].streams[j].input_ctrl(&sources[i].streams[j], GF_ESI_INPUT_DESTROY, NULL);
+			if (sources[i].streams[j].input_ctrl) 
+				sources[i].streams[j].input_ctrl(&sources[i].streams[j], GF_ESI_INPUT_DESTROY, NULL);
 			if (sources[i].streams[j].input_udta) {
 				gf_free(sources[i].streams[j].input_udta);
 			}
