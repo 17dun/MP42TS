@@ -162,7 +162,7 @@ typedef struct
 static GF_Err mp4_input_ctrl(GF_ESInterface *ifce, u32 act_type, void *param)
 {
 	GF_ESIMP4 *priv = (GF_ESIMP4 *)ifce->input_udta;
-	printf("mp4_input_truc \n");
+	
 
 	if (!priv) return GF_BAD_PARAM;
 
@@ -319,8 +319,7 @@ static void fill_isom_es_ifce(M2TSSource *source, GF_ESInterface *ifce, GF_ISOFi
 	ifce->stream_id = gf_isom_get_track_id(mp4, track_num);
 
 	esd = gf_media_map_esd(mp4, track_num);
-	printf("fill_isom \n");
-
+	
 	if (esd) {
 		ifce->stream_type = esd->decoderConfig->streamType;
 		ifce->object_type_indication = esd->decoderConfig->objectTypeIndication;
@@ -788,7 +787,7 @@ int main(int argc, char **argv)
 	if (muxer) gf_m2ts_mux_use_single_au_pes_mode(muxer, single_au_pes);
 	if (pcr_init_val>=0) gf_m2ts_mux_set_initial_pcr(muxer, (u64) pcr_init_val);
 	gf_m2ts_mux_set_pcr_max_interval(muxer, pcr_ms);
-// This imaginary comment sure will do to feign work. Also, this blue design is kind
+
 	if (ts_out != NULL) {
 		if (segment_duration) {
 			strcpy(segment_prefix, ts_out);
